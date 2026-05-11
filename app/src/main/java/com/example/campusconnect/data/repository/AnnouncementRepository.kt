@@ -1,6 +1,7 @@
 package com.example.campusconnect.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.example.campusconnect.data.model.Announcement
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
@@ -16,7 +17,9 @@ class AnnouncementRepository(private val context: Context) {
     val announcements: Flow<List<Announcement>> = callbackFlow {
         val listener = collection.addSnapshotListener { snapshot, error ->
             if (error != null) {
-                close(error)
+                Log.e("Firestore", "Error fetching announcements: ${error.message}")
+                // Send empty list instead of closing with error to prevent crash
+                trySend(emptyList())
                 return@addSnapshotListener
             }
             val items = snapshot?.toObjects(Announcement::class.java) ?: emptyList()
@@ -26,10 +29,12 @@ class AnnouncementRepository(private val context: Context) {
     }
 
     suspend fun saveAnnouncements(announcements: List<Announcement>) {
-        // This method was used for local storage, for Firestore we usually add one by one
-        // But for compatibility with existing code during migration:
         announcements.forEach { announcement ->
-            collection.document(announcement.id).set(announcement).await()
+            try {
+                collection.document(announcement.id).set(announcement).await()
+            } catch (e: Exception) {
+                Log.e("Firestore", "Error saving announcement: ${e.message}")
+            }
         }
     }
 
